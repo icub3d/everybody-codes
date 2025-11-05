@@ -11,3 +11,4 @@ serde_json = { workspace = true }
 rustc-hash = { workspace = true }
 itertools = { workspace = true }
 rayon = { workspace = true }
+num = "0.4.3"
