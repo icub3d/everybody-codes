@@ -59,15 +59,81 @@ export def "ec all" [year: int] {
 export def "ec" [year: int, quest: int] {
     let crate_name = $"ec_($year)"
     let quest_mod = (if $quest < 10 { $"quest0($quest)" } else { $"quest($quest)" })
-    print $"🐥 EC ($year) - Quest ($quest) 🐥"
-    cargo run --release -q -p $crate_name --bin $quest_mod
+    print $" 🐥 EC ($year) - Quest ($quest) 🐥\n"
+
+    let keys_path = $"solutions/($crate_name)/src/bin/inputs/($quest_mod)-keys.json"
+    let answers = if not ($keys_path | path exists) {
+        []
+    } else {
+        (open $keys_path | items {|k, v| {name: $k, value: $v}} )
+        | where { |i| ($i.name | str starts-with "answer") and not ($i.value | is-empty) }
+        | each { |i| { part: ($i.name | str substring 6.. | into int), answer: $i.value } }
+    }
+
+    let run = (cargo run --release -q -p $crate_name --bin $quest_mod | complete)
+
+    if $run.exit_code != 0 {
+        print-error $"Quest ($quest_mod) failed with exit code ($run.exit_code)"
+        let stderr = ($run.stderr | default "" | str trim)
+        if not ($stderr | is-empty) {
+            print $stderr
+        }
+        return
+    }
+
+    let output_lines = ($run.stdout | str trim | lines)
+
+    if ($answers | is-empty) or (($output_lines | length) > 3) {
+        print $run.stdout
+        return
+    }
+
+    let results = ($output_lines | each { |line|
+        let parsed = ($line | parse "{part} {time} {solution}")
+        if ($parsed | is-empty) {
+            null
+        } else {
+            let part_str = ($parsed | get part | first)
+            let time = ($parsed | get time | first)
+            let solution = ($parsed | get solution | first)
+
+            let part_num = ($part_str | str substring 1.. | into int)
+            let matching_answer = ($answers | where part == $part_num)
+
+            let correct_answer = if not ($matching_answer | is-empty) {
+                ($matching_answer | get answer | first)
+            } else {
+                null
+            }
+
+            let status = if $correct_answer == null {
+                "🔄"
+            } else if $solution == $correct_answer {
+                "✅"
+            } else {
+                "❌"
+            }
+
+            {
+                part: $part_str,
+                time: $time,
+                solution: $solution,
+                correct_answer: ($correct_answer | default ""),
+                status: $status
+            }
+        }
+    } | where {|it| $it != null})
+
+    if not ($results | is-empty) {
+        $results | select part status time solution correct_answer | rename "🧩" "🚦" "⏰" "💡" "🎯" | each {|r| print ($r | table -i false -t none) " " } | ignore
+    }
 }
 
 export def "ec test" [year: int, quest: int] {
     let crate_name = $"ec_($year)"
     let quest_mod = (if $quest < 10 { $"quest0($quest)" } else { $"quest($quest)" })
     
-    print $"🐥 Test EC ($year) - Quest ($quest) 🐥"
+    print $"🐥 Test EC ($year) - Quest ($quest) 🐥\n"
     cargo test -p $crate_name --bin $quest_mod
 }
 
@@ -89,14 +155,13 @@ def run-quest [year: int, quest: int, --test] {
       if $test {
           ec test $year $quest
       } else {
-          ec $year $quest 
+          ec $year $quest
       }
   } catch { |err| 
       print-error $"Compilation failed: ($err.msg)"
       print "🔄 Watching for changes..."
   }
 }
-
 ###*
 # Sets up a new solution crate for a given year.
 #
@@ -193,6 +258,17 @@ export def "ec new quest" [
 export def "ec submit" [year: int, quest:int, part:int, answer:string] {
 
     http post --content-type application/json --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody.codes/api/event/($year)/quest/($quest)/part/($part)/answer" { "answer": $"($answer)"}
+}
+
+export def "ec fetch key" [year: int, quest:int] {
+    let year_str = $"($year)"
+    let quest_str = $"($quest)"
+    let crate_name = $"ec_($year_str)"
+    let crate_path = $"solutions/($crate_name)"
+    let inputs_path = $"($crate_path)/src/bin/inputs"
+    let quest_mod = (if $quest < 10 { $"quest0($quest)" } else { $"quest($quest)" })
+    let keys_path = $"($inputs_path)/($quest_mod)-keys.json"
+    http get --raw --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody.codes/api/event/($year_str)/quest/($quest_str)" | save -f $keys_path
 }
 
 export def "ec input decode" [year: int, quest:int, part:int] {
