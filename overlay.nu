@@ -70,6 +70,42 @@ export def "ec" [year: int, quest: int] {
         | each { |i| { part: ($i.name | str substring 6.. | into int), answer: $i.value } }
     }
 
+    # Run tests and capture results
+    let test_run = (cargo test --no-fail-fast -p $crate_name --bin $quest_mod | complete)
+    let test_lines = ($test_run.stdout | default "" | lines | where {|it| ($it | str trim | str starts-with "test ") })
+
+    if $test_run.exit_code != 0 and ($test_lines | is-empty) {
+        # Likely a compile error
+        print-error $"Test compilation failed with exit code ($test_run.exit_code)"
+        let stderr = ($test_run.stderr | default "" | str trim)
+        if not ($stderr | is-empty) {
+            print $stderr
+        }
+    }
+
+    let test_status_map = ($test_lines | each { |line|
+        let parts = ($line | split row " ... ")
+        if ($parts | length) != 2 {
+            null
+        } else {
+            let name = ($parts | get 0 | str replace "test " "")
+            let status = ($parts | get 1)
+            let part_num = (try { ($name | str replace "tests::test_p" "" | into int) } catch { null })
+            if $part_num == null {
+                null
+            } else {
+                {
+                    part: $part_num,
+                    test_status: (if $status == "ok" { "✅" } else { "❌" }),
+                    name: $name
+                }
+            }
+        }
+    } | where {|it| $it != null })
+    
+    let test_failures = ($test_status_map | where test_status == "❌")
+
+
     let run = (cargo run --release -q -p $crate_name --bin $quest_mod | complete)
 
     if $run.exit_code != 0 {
@@ -81,10 +117,30 @@ export def "ec" [year: int, quest: int] {
         return
     }
 
-    let output_lines = ($run.stdout | str trim | lines)
+    let output_lines = ($run.stdout | default "" | str trim | lines)
 
     if ($answers | is-empty) or (($output_lines | length) > 3) {
         print $run.stdout
+        if not ($test_failures | is-empty) {
+            print-error "\n\nUnit Test Failures:"
+            let stdout_lines = ($test_run.stdout | lines)
+            for failure in $test_failures {
+                print-error $"\n- ($failure.name):"
+                
+                mut start_index = -1
+                for line in ($stdout_lines | enumerate) {
+                    if ($line.item | str contains $"---- ($failure.name) stdout ----") {
+                        $start_index = $line.index
+                        break
+                    }
+                }
+                
+                if $start_index > -1 {
+                    let failure_lines = ($stdout_lines | skip ($start_index + 2) | take while { not ($in | is-empty) })
+                    print ($failure_lines | str join "\n")
+                }
+            }
+        }
         return
     }
 
@@ -114,18 +170,47 @@ export def "ec" [year: int, quest: int] {
                 "❌"
             }
 
+            let matching_test = ($test_status_map | where part == $part_num)
+            let test_status = if ($matching_test | is-empty) {
+                "❓"
+            } else {
+                ($matching_test | get test_status | first)
+            }
+
             {
                 part: $part_str,
                 time: $time,
                 solution: $solution,
                 correct_answer: ($correct_answer | default ""),
-                status: $status
+                status: $status,
+                test_status: $test_status
             }
         }
     } | where {|it| $it != null})
 
     if not ($results | is-empty) {
-        $results | select part status time solution correct_answer | rename "🧩" "🚦" "⏰" "💡" "🎯" | each {|r| print ($r | table -i false -t none) " " } | ignore
+        $results | select part status test_status time solution correct_answer | rename "🧩" "🚦" "🧪" "⏰" "💡" "🎯" | each {|r| print ($r | table -i false -t none) " " } | ignore
+    }
+
+    if not ($test_failures | is-empty) {
+        print-error "\n\nUnit Test Failures:"
+        let stdout_lines = ($test_run.stdout | lines)
+        for failure in $test_failures {
+            print-error $"\n- ($failure.name):"
+            
+            mut start_index = -1
+            for line in ($stdout_lines | enumerate) {
+                if ($line.item | str contains $"---- ($failure.name) stdout ----") {
+                    $start_index = $line.index
+                    break
+                }
+            }
+            
+            if $start_index > -1 {
+                let failure_lines = ($stdout_lines | skip ($start_index + 2) | take while { not ($in | is-empty) })
+                print ($failure_lines | str join "\n")
+            }
+        }
     }
 }
 
@@ -134,34 +219,32 @@ export def "ec test" [year: int, quest: int] {
     let quest_mod = (if $quest < 10 { $"quest0($quest)" } else { $"quest($quest)" })
     
     print $"🐥 Test EC ($year) - Quest ($quest) 🐥\n"
-    cargo test -p $crate_name --bin $quest_mod
+    cargo test --no-fail-fast -p $crate_name --bin $quest_mod err> /dev/null
 }
 
 export def "ec watch" [
     year: int, 
     quest: int,
-    --test # Run tests instead of the solution
 ] {
   reset-terminal 
-  run-quest $year $quest --test=$test
+  run-quest $year $quest
+  try {
     watch --quiet . --glob=**/*.rs {||
       reset-terminal 
-      run-quest $year $quest --test=$test
+      run-quest $year $quest
     }
+  } catch {}
 }
 
 def run-quest [year: int, quest: int, --test] {
   try { 
-      if $test {
-          ec test $year $quest
-      } else {
-          ec $year $quest
-      }
+    ec $year $quest
   } catch { |err| 
-      print-error $"Compilation failed: ($err.msg)"
-      print "🔄 Watching for changes..."
+    print-error $"Compilation failed: ($err.msg)"
+    print "🔄 Watching for changes..."
   }
 }
+
 ###*
 # Sets up a new solution crate for a given year.
 #

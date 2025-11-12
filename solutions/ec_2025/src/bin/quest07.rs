@@ -135,3 +135,25 @@ fn parse_input_part3(input: &'_ str) -> InputPart3<'_> {
     parse_input_part1(input)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_p1() {
+        let input = parse_input_part1(INPUT_PART1);
+        assert_eq!(input, input);
+    }
+
+    #[test]
+    fn test_p2() {
+        let input = parse_input_part2(INPUT_PART2);
+        assert_eq!(input, input);
+    }
+
+    #[test]
+    fn test_p3() {
+        let input = parse_input_part3(INPUT_PART3);
+        assert_eq!(input, input);
+    }
+}
