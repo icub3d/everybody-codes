@@ -23,12 +23,9 @@ fn p1(strings: &InputPart1, size: isize) -> usize {
 }
 
 fn overlap((s1, e1): (isize, isize), (s2, e2): (isize, isize)) -> bool {
-    // The strings overlap if one side is between start and end and the other side is
-    // between end and start.
-    (s2 > s1 && s2 < e1 && (e2 > e1 || e2 < s1))
-        || (e2 > s1 && e2 < e1 && (s2 > e1 || s2 < s1))
-        || (s2 == s1 && e2 == e1)
-        || (s2 == e1 && e2 == s1)
+    // The strings overlap if one side is between start and end and the other side is between end
+    // and start. Since we are sorted, we can limit our checks.
+    (s2 > s1 && s2 < e1 && e2 > e1) || (e2 > s1 && e2 < e1 && s2 < s1) || (s1 == s2 && e1 == e2)
 }
 
 fn p2(strings: &InputPart2) -> usize {
@@ -115,4 +112,3 @@ mod tests {
         assert_eq!(input, input);
     }
 }
-
