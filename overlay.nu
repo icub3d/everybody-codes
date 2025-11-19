@@ -121,15 +121,9 @@ export def "ec all" [year: int] {
 }
 
 # Everybody Codes runner
-export def "ec" [year: int, quest: int, --title: string] {
+export def "ec" [year: int, quest: int] {
     let paths = (get-quest-paths $year $quest)
     
-    mut header = $" 🐥 EC ($year) - Quest ($quest)"
-    if $title != null {
-        $header = $"($header) - ($title)"
-    }
-    print $"($header) 🐥\n"
-
     let answers = if not ($paths.keys_path | path exists) {
         []
     } else {
@@ -211,24 +205,23 @@ export def "ec watch" [
     year: int, 
     quest: int,
     --test,
-    --title: string
 ] {
   reset-terminal 
-  run-quest $year $quest --test=$test --title=$title
+  run-quest $year $quest --test=$test
   try {
     watch --quiet . --glob=**/*.rs {||
       reset-terminal 
-      run-quest $year $quest --test=$test --title=$title
+      run-quest $year $quest --test=$test
     }
   } catch {}
 }
 
-def run-quest [year: int, quest: int, --test, --title: string] {
+def run-quest [year: int, quest: int, --test] {
   try { 
     if $test {
       ec test $year $quest
     } else {
-      ec $year $quest --title=$title
+      ec $year $quest
     }
   } catch { |err| 
     print-error $"Compilation failed: ($err.msg)"
@@ -255,12 +248,12 @@ def "run-debug" [year: int, quest: int] {
     
     print $"🧪 Tests 🧪"
     try {
-      cargo test -p $paths.crate_name -q --no-fail-fast "--bin" $paths.quest_mod -- --nocapture
+      cargo test --release -p $paths.crate_name -q --no-fail-fast "--bin" $paths.quest_mod -- --nocapture
     } catch {}
 
     print $"🚀 Quest 🚀"
     try {
-      cargo run -p $paths.crate_name -q "--bin" $paths.quest_mod 
+      cargo run --release -p $paths.crate_name -q "--bin" $paths.quest_mod 
     } catch {}
 }
 
