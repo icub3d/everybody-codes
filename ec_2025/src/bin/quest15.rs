@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-const INPUT_PART1: &str = include_str!("inputs/[NAME]-1.txt");
+const INPUT_PART1: &str = include_str!("inputs/quest15-1.txt");
 type InputPart1<'a> = Vec<&'a str>;
 fn parse_input_part1(input: &'_ str) -> InputPart1<'_> {
     // TODO: have you trim today?
@@ -36,13 +36,13 @@ fn main() {
     println!("p3 {:?} {}", now.elapsed(), solution);
 }
 
-const INPUT_PART2: &str = include_str!("inputs/[NAME]-2.txt");
+const INPUT_PART2: &str = include_str!("inputs/quest15-2.txt");
 type InputPart2<'a> = InputPart1<'a>;
 fn parse_input_part2(input: &'_ str) -> InputPart2<'_> {
     parse_input_part1(input)
 }
 
-const INPUT_PART3: &str = include_str!("inputs/[NAME]-3.txt");
+const INPUT_PART3: &str = include_str!("inputs/quest15-3.txt");
 type InputPart3<'a> = InputPart1<'a>;
 fn parse_input_part3(input: &'_ str) -> InputPart3<'_> {
     parse_input_part1(input)

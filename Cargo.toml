@@ -1,6 +1,7 @@
 [workspace]
 members = [
-    "solutions/*", # include all years
+    "ec_2024",
+    "ec_2025",
 ]
 
 resolver = "3"
