@@ -16,15 +16,8 @@ def get-input [workspace: string, name: string, part="1": string] {
   
   mkdir $inputs_path
 
-  # Make empty inputs so the template.rs works until new ones come in. Don't overwrite though.
-  try {
-      echo "" | save $"($inputs_path)/($name)-1.txt"
-      echo "" | save $"($inputs_path)/($name)-2.txt"
-      echo "" | save $"($inputs_path)/($name)-3.txt"
-  } catch {}
-
   let year = ($workspace | path basename | str substring 3..)
-  let quest = ($name | str replace "quest" "" | str trim)
+  let quest = ($name | str replace "quest" "" | str trim | into int | into string)
 
   if ($env.EC_SESSION? | is-empty) {
     error make {msg: "EC_SESSION environment variable is not set"}
@@ -34,7 +27,9 @@ def get-input [workspace: string, name: string, part="1": string] {
   http get --raw --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody.codes/api/event/($year)/quest/($quest)" | save -f $keys_path
 
   # Get the input.
-  if not ($input_path | path exists) {
+  let file_missing = not ($input_path | path exists)
+  let file_empty = if ($input_path | path exists) { (ls $input_path | get 0.size) == 0B } else { false }
+  if $file_missing or $file_empty {
     let user_info = (http get --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] https://everybody.codes/api/user/me)
     http get --raw --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody-codes.b-cdn.net/assets/($year)/($quest)/input/($user_info.seed).json" out> $input_path
   }
@@ -44,6 +39,12 @@ def get-input [workspace: string, name: string, part="1": string] {
   let key = (cat $keys_path | from json | get $"key($part_num)")
   let iv = ($key | str substring 0..15)
   cat $input_path | from json | get $"($part_num)" | aes decrypt --iv $"($iv)" -k $"($key)" | save --force $input_part_path
+  
+  # If this is part 1, copy to parts 2 and 3 for template to work
+  if $part_num == "1" {
+    cp $input_part_path $"($inputs_path)/($name)-2.txt"
+    cp $input_part_path $"($inputs_path)/($name)-3.txt"
+  }
 }
 
 def get-target [workspace: string, name: string, part="1": string] {
