@@ -175,7 +175,7 @@ struct Map {
 
 impl Map {
     fn from_input(input: &InputPart1) -> Self {
-        // We start by building our walls and tracking corners. 
+        // We start by building our walls and tracking corners.
         let mut walls = Vec::new();
         let mut corners = Vec::new();
         let mut delta = Point::new(0, -1);
@@ -238,7 +238,7 @@ impl Map {
 }
 
 fn p3(input: &InputPart3) -> usize {
-    // Now we can just run dijkstra's algorithm on the points of interest.
+    // Now we can just run Dijkstra's algorithm on the points of interest.
     let map = Map::from_input(input);
     let (_, cost) = dijkstra(
         &map.start,

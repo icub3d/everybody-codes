@@ -1,5 +1,7 @@
 #!/usr/bin/env nu
 
+source ~/.config/nushell/config.nu
+
 def get-input [workspace: string, name: string, part="1": string] {
   let inputs_path = $"($workspace)/src/bin/inputs"
   let input_path = $"($inputs_path)/($name).json"
@@ -74,12 +76,24 @@ def get-target [workspace: string, name: string, part="1": string] {
   }
 }
 
+def youtube [year: int, quest: int] {
+  let quest_str = if $quest < 10 { $"0($quest)" } else { $"($quest)" };
+
+  let url = $"https://everybody.codes/event/($year)/quests/($quest)" 
+  let times = $"~/Videos/($year)-($quest_str).json" 
+  let desc = $"Solution for Everybody Codes ($year) Quest ($quest)" 
+  let file = $"ec_($year)/src/bin/quest($quest_str).rs" 
+
+  youtube-description $url $times $desc $file
+}
+
 def main [command?: string, ...args] {
   if ($command | is-empty) {
     print "Usage: helper.nu <command> [args...]"
     print "Available commands:"
     print "  get-input <workspace> <name> [part]"
     print "  get-target <workspace> <name> [part]"
+    print "  youtube <year> <quest>"
     return
   }
 
@@ -106,11 +120,21 @@ def main [command?: string, ...args] {
       let part = (if ($args | length) >= 3 { $args | get 2 } else { "1" })
       get-target $workspace $name $part
     }
+    "youtube" => {
+      if ($args | length) < 2 {
+        print "Usage: youtube <year> <quest>"
+        return
+      }
+      let year = ($args | get 0 | into int)
+      let quest = ($args | get 1 | into int)
+      youtube $year $quest
+    }
     _ => {
       print $"Unknown command: ($command)"
       print "Available commands:"
       print "  get-input <workspace> <name> [part]"
       print "  get-target <workspace> <name> [part]"
+      print "  youtube <year> <quest>"
     }
   }
 }
