@@ -18,7 +18,12 @@ def get-input [workspace: string, name: string, part="1": string] {
   
   mkdir $inputs_path
 
-  let year = ($workspace | path basename | str substring 3..)
+  let year = if ($workspace | str starts-with "story") {
+    ($workspace | path basename | str substring 6..)
+  } else {
+    ($workspace | path basename | str substring 3..)
+  }
+
   let quest = ($name | str replace "quest" "" | str trim | into int | into string)
 
   if ($env.EC_SESSION? | is-empty) {
@@ -78,11 +83,20 @@ def get-target [workspace: string, name: string, part="1": string] {
 
 def youtube [year: int, quest: int] {
   let quest_str = if $quest < 10 { $"0($quest)" } else { $"($quest)" };
+  let folder = if $year < 2000 { "story" } else { "event" };
 
-  let url = $"https://everybody.codes/event/($year)/quests/($quest)" 
+  let url = $"https://everybody.codes/($folder)/($year)/quests/($quest)" 
   let times = $"~/Videos/($year)-($quest_str).json" 
-  let desc = $"Solution for Everybody Codes ($year) Quest ($quest)" 
-  let file = $"ec_($year)/src/bin/quest($quest_str).rs" 
+  let desc = if $year < 2000 {
+    $"Solution for Everybody Codes Story ($year) Quest ($quest)" 
+  } else {
+    $"Solution for Everybody Codes ($year) Quest ($quest)" 
+  };
+  let file = if $year < 2000 {
+    $"story_($year)/src/bin/quest($quest_str).rs" 
+  } else {
+    $"ec_($year)/src/bin/quest($quest_str).rs" 
+  };
 
   youtube-description $url $times $desc $file
 }

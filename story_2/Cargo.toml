@@ -1,0 +1,15 @@
+
+[package]
+name = "story_2"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+pathfinding = { workspace = true }
+serde_json = { workspace = true }
+rustc-hash = { workspace = true }
+itertools = { workspace = true }
+rayon = { workspace = true }
+num = "0.4.3"
