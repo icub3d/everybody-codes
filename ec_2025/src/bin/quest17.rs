@@ -20,21 +20,15 @@ impl Tile {
         Self { row, col }
     }
 
+    const NEIGHBORS: [(isize, isize); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+
+    // Get all neighbors of this tile that are within the grid.
     fn neighbors(&self, max_row: isize, max_col: isize) -> impl Iterator<Item = Tile> {
-        let row = self.row;
-        let col = self.col;
-
-        [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        Self::NEIGHBORS
             .into_iter()
-            .filter_map(move |(dr, dc)| {
-                let nr = row + dr;
-                let nc = col + dc;
-
-                if nr >= 0 && nr < max_row && nc >= 0 && nc < max_col {
-                    Some(Tile::new(nr, nc))
-                } else {
-                    None
-                }
+            .map(|(dr, dc)| Tile::new(self.row + dr, self.col + dc))
+            .filter(move |tile| {
+                tile.row >= 0 && tile.row < max_row && tile.col >= 0 && tile.col < max_col
             })
     }
 }
@@ -50,6 +44,7 @@ impl Grid {
         let mut volcano = Tile::new(0, 0);
         let mut start = Tile::new(0, 0);
 
+        // Create the grid, but also track the volcano and start location.
         let cells: Vec<Vec<char>> = (0isize..)
             .zip(input.lines())
             .map(|(row, line)| {
@@ -129,6 +124,8 @@ fn p1(input: &str) -> usize {
 fn p2(input: &str) -> usize {
     let grid = Grid::parse(input);
 
+    // Get the destruction at each radius and find the largest. We make windows because the
+    // destruction of the current radius shouldn't include previous radii.
     let (radius, destruction) = (1..=grid.max())
         .map(|radius| (radius, grid.destruction(radius)))
         .tuple_windows()
@@ -139,49 +136,54 @@ fn p2(input: &str) -> usize {
     radius as usize * destruction
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Quadrant {
-    TopLeft = 0,
-    BottomLeft = 1,
-    BottomRight = 2,
-    TopRight = 3,
-}
+// Track how the path has wound around the volcano. This will let us know if we've make a loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+struct Winding(isize);
 
-impl Quadrant {
-    fn from_pos(pos: &Tile, center: &Tile) -> Self {
+impl Winding {
+    // Get a quadrant for a tile based on where it is with respect to the center.
+    fn quadrant(pos: &Tile, center: &Tile) -> isize {
         if pos.row <= center.row && pos.col > center.col {
-            Quadrant::TopRight
+            3 // TopRight
         } else if pos.row > center.row && pos.col >= center.col {
-            Quadrant::BottomRight
+            2 // BottomRight
         } else if pos.row >= center.row && pos.col < center.col {
-            Quadrant::BottomLeft
+            1 // BottomLeft
         } else {
-            Quadrant::TopLeft
+            0 // TopLeft
         }
     }
 
-    fn winding_delta(&self, next: &Quadrant) -> i8 {
-        if self == next {
-            return 0;
-        }
-
-        let diff = (*next as i8 - *self as i8 + 4) % 4;
-        match diff {
+    // Determine how we'd move from one quadrant to another.
+    fn delta(cur: isize, next: isize) -> isize {
+        match (next - cur).rem_euclid(4) {
             1 => 1,  // Clockwise
             3 => -1, // Counter-clockwise
-            _ => 0,  // Jumping across
+            _ => 0,  // Same in this case, across in general case as well.
         }
+    }
+
+    // Get our new winding value based on the change from cur to next.
+    fn from_move(winding: Self, cur: &Tile, next: &Tile, center: &Tile) -> Self {
+        let cur_quad = Self::quadrant(cur, center);
+        let next_quad = Self::quadrant(next, center);
+        Self(winding.0 + Self::delta(cur_quad, next_quad))
+    }
+
+    // If we've gone +/- 4, that's a full loop around the grid.
+    fn is_complete(&self) -> bool {
+        self.0.abs() >= 4
     }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 struct LoopState {
     pos: Tile,
-    winding: i8,
+    winding: Winding,
 }
 
 impl LoopState {
-    fn new(pos: Tile, winding: i8) -> Self {
+    fn new(pos: Tile, winding: Winding) -> Self {
         Self { pos, winding }
     }
 }
@@ -212,12 +214,18 @@ impl PartialOrd for SearchNode {
 }
 
 fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
-    // Track our nodes to visit, prioritizing lower costs.
+    // Track our nodes to visit, prioritizing lower costs. Start with neighbors of `start`.
     let mut frontier = grid
         .start
         .neighbors(grid.height(), grid.width())
         .filter(|n| !lava.contains(n))
-        .map(|n| SearchNode::new(grid.cost(&n), LoopState::new(n, 0), grid.start))
+        .map(|n| {
+            SearchNode::new(
+                grid.cost(&n),
+                LoopState::new(n, Winding::default()),
+                grid.start,
+            )
+        })
         .collect::<BinaryHeap<_>>();
 
     // Track our known distances
@@ -238,7 +246,7 @@ fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
         // Explore neighbors.
         for neighbor in state.pos.neighbors(grid.height(), grid.width()) {
             // We check for a winning solution and return it if we have one.
-            if neighbor == grid.start && state.winding.abs() >= 4 {
+            if neighbor == grid.start && state.winding.is_complete() {
                 return Some(cost);
             }
 
@@ -248,17 +256,13 @@ fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
                 continue;
             }
 
-            // Calculate winding change
-            let current_quad = Quadrant::from_pos(&state.pos, &grid.volcano);
-            let next_quad = Quadrant::from_pos(&neighbor, &grid.volcano);
-            let winding_delta = current_quad.winding_delta(&next_quad);
-            let new_winding = (state.winding + winding_delta).clamp(-10, 10);
-
-            let next_state = LoopState::new(neighbor, new_winding);
-
+            // Add our neighbor node to frontier.
             frontier.push(SearchNode::new(
                 cost + grid.cost(&neighbor),
-                next_state,
+                LoopState::new(
+                    neighbor,
+                    Winding::from_move(state.winding, &state.pos, &neighbor, &grid.volcano),
+                ),
                 state.pos,
             ));
         }
