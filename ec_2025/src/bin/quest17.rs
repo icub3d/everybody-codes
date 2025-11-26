@@ -31,6 +31,19 @@ impl Tile {
                 tile.row >= 0 && tile.row < max_row && tile.col >= 0 && tile.col < max_col
             })
     }
+
+    // Get a quadrant for a tile based on where it is with respect to the center.
+    fn quadrant(&self, center: &Tile) -> isize {
+        if self.row <= center.row && self.col > center.col {
+            3 // TopRight
+        } else if self.row > center.row && self.col >= center.col {
+            2 // BottomRight
+        } else if self.row >= center.row && self.col < center.col {
+            1 // BottomLeft
+        } else {
+            0 // TopLeft
+        }
+    }
 }
 
 struct Grid {
@@ -136,26 +149,35 @@ fn p2(input: &str) -> usize {
     radius as usize * destruction
 }
 
-// Track how the path has wound around the volcano. This will let us know if we've make a loop.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-struct Winding(isize);
+impl Grid {
+    // Get the obstacles for the given grid to filter our neighbors.
+    fn obstacles(&self, radius: isize) -> FxHashSet<Tile> {
+        (0..self.height())
+            .flat_map(|row| (0..self.width()).map(move |col| Tile::new(row, col)))
+            .filter(|pos| self.in_radius(pos, radius))
+            .collect()
+    }
+}
 
-impl Winding {
-    // Get a quadrant for a tile based on where it is with respect to the center.
-    fn quadrant(pos: &Tile, center: &Tile) -> isize {
-        if pos.row <= center.row && pos.col > center.col {
-            3 // TopRight
-        } else if pos.row > center.row && pos.col >= center.col {
-            2 // BottomRight
-        } else if pos.row >= center.row && pos.col < center.col {
-            1 // BottomLeft
-        } else {
-            0 // TopLeft
+// This will track our status of making the loop as well as our current position.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+struct LoopState {
+    pos: Tile,
+    winding: isize,
+    quadrant: isize,
+}
+
+impl LoopState {
+    fn new(pos: Tile, center: &Tile) -> Self {
+        Self {
+            pos,
+            winding: 0,
+            quadrant: pos.quadrant(center),
         }
     }
 
-    // Determine how we'd move from one quadrant to another.
-    fn delta(cur: isize, next: isize) -> isize {
+    // Determine if we'd move from one quadrant to another.
+    fn quadrant_delta(cur: isize, next: isize) -> isize {
         match (next - cur).rem_euclid(4) {
             1 => 1,  // Clockwise
             3 => -1, // Counter-clockwise
@@ -163,51 +185,43 @@ impl Winding {
         }
     }
 
-    // Get our new winding value based on the change from cur to next.
-    fn from_move(winding: Self, cur: &Tile, next: &Tile, center: &Tile) -> Self {
-        let cur_quad = Self::quadrant(cur, center);
-        let next_quad = Self::quadrant(next, center);
-        Self(winding.0 + Self::delta(cur_quad, next_quad))
+    // Create a new state from moving to a neighbor position.
+    fn next_state(&self, neighbor: Tile, center: &Tile) -> Self {
+        let neighbor_quadrant = neighbor.quadrant(center);
+        Self {
+            pos: neighbor,
+            winding: self.winding + Self::quadrant_delta(self.quadrant, neighbor_quadrant),
+            quadrant: neighbor_quadrant,
+        }
     }
 
     // If we've gone +/- 4, that's a full loop around the grid.
     fn is_complete(&self) -> bool {
-        self.0.abs() >= 4
+        self.winding.abs() >= 4
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-struct LoopState {
-    pos: Tile,
-    winding: Winding,
-}
-
-impl LoopState {
-    fn new(pos: Tile, winding: Winding) -> Self {
-        Self { pos, winding }
-    }
-}
-
+// This is the node that our Dijkstra's algorithm will track.
 #[derive(Copy, Clone, Eq, PartialEq)]
-struct SearchNode {
+struct Node {
     cost: usize,
     state: LoopState,
     prev: Tile,
 }
 
-impl SearchNode {
+impl Node {
     fn new(cost: usize, state: LoopState, prev: Tile) -> Self {
         Self { cost, state, prev }
     }
 }
 
-impl Ord for SearchNode {
+impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
         other.cost.cmp(&self.cost) // Min-heap
     }
 }
 
-impl PartialOrd for SearchNode {
+impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -219,19 +233,14 @@ fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
         .start
         .neighbors(grid.height(), grid.width())
         .filter(|n| !lava.contains(n))
-        .map(|n| {
-            SearchNode::new(
-                grid.cost(&n),
-                LoopState::new(n, Winding::default()),
-                grid.start,
-            )
-        })
+        .map(|n| Node::new(grid.cost(&n), LoopState::new(n, &grid.volcano), grid.start))
         .collect::<BinaryHeap<_>>();
 
     // Track our known distances
     let mut distances = FxHashMap::<LoopState, usize>::default();
 
-    while let Some(SearchNode { cost, state, prev }) = frontier.pop() {
+    // Grab the lowest cost node until we find the shortest path or run out.
+    while let Some(Node { cost, state, prev }) = frontier.pop() {
         // If we've been here before, we only want to try it if we
         // have a new better cost.
         if let Some(&prev) = distances.get(&state)
@@ -246,38 +255,25 @@ fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
         // Explore neighbors.
         for neighbor in state.pos.neighbors(grid.height(), grid.width()) {
             // We check for a winning solution and return it if we have one.
-            if neighbor == grid.start && state.winding.is_complete() {
+            if neighbor == grid.start && state.is_complete() {
                 return Some(cost);
             }
 
-            // We don't want to backtrack, explore start, or an obstacle. These first two seem to
-            // help with performance though aren't strictly necessary.
+            // We don't want to backtrack, explore start, or an obstacle.
             if neighbor == prev || neighbor == grid.start || lava.contains(&neighbor) {
                 continue;
             }
 
             // Add our neighbor node to frontier.
-            frontier.push(SearchNode::new(
+            frontier.push(Node::new(
                 cost + grid.cost(&neighbor),
-                LoopState::new(
-                    neighbor,
-                    Winding::from_move(state.winding, &state.pos, &neighbor, &grid.volcano),
-                ),
+                state.next_state(neighbor, &grid.volcano),
                 state.pos,
             ));
         }
     }
 
     None
-}
-
-impl Grid {
-    fn obstacles(&self, radius: isize) -> FxHashSet<Tile> {
-        (0..self.height())
-            .flat_map(|row| (0..self.width()).map(move |col| Tile::new(row, col)))
-            .filter(|pos| self.in_radius(pos, radius))
-            .collect()
-    }
 }
 
 fn p3(input: &str) -> usize {
