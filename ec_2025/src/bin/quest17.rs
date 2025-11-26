@@ -5,6 +5,8 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::time::Instant;
 
+// TODO what if we short-circuit Dijkstra by checking for -2/2 in the winding value for the same tile. If we ever find it, the sum create the loop.
+
 const INPUT_PART1: &str = include_str!("inputs/quest17-1.txt");
 const INPUT_PART2: &str = include_str!("inputs/quest17-2.txt");
 const INPUT_PART3: &str = include_str!("inputs/quest17-3.txt");
@@ -187,16 +189,16 @@ impl LoopState {
 
     // Create a new state from moving to a neighbor position.
     fn next_state(&self, neighbor: Tile, center: &Tile) -> Self {
-        let neighbor_quadrant = neighbor.quadrant(center);
+        let quadrant = neighbor.quadrant(center);
         Self {
             pos: neighbor,
-            winding: self.winding + Self::quadrant_delta(self.quadrant, neighbor_quadrant),
-            quadrant: neighbor_quadrant,
+            winding: self.winding + Self::quadrant_delta(self.quadrant, quadrant),
+            quadrant,
         }
     }
 
     // If we've gone +/- 4, that's a full loop around the grid.
-    fn is_complete(&self) -> bool {
+    fn winding_complete(&self) -> bool {
         self.winding.abs() >= 4
     }
 }
@@ -255,7 +257,7 @@ fn find_shortest_loop(grid: &Grid, lava: &FxHashSet<Tile>) -> Option<usize> {
         // Explore neighbors.
         for neighbor in state.pos.neighbors(grid.height(), grid.width()) {
             // We check for a winning solution and return it if we have one.
-            if neighbor == grid.start && state.is_complete() {
+            if neighbor == grid.start && state.winding_complete() {
                 return Some(cost);
             }
 
@@ -284,8 +286,8 @@ fn p3(input: &str) -> usize {
         .into_par_iter()
         .filter_map(|radius| Some((radius, find_shortest_loop(&grid, &grid.obstacles(radius))?)))
         .filter(|&(radius, time)| time / 30 <= radius as usize)
+        .min_by_key(|&(radius, _)| radius)
         .map(|(radius, time)| time * radius as usize)
-        .min()
         .unwrap()
 }
 
