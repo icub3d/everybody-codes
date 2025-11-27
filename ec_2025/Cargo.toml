@@ -6,9 +6,11 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 pathfinding = { workspace = true }
 serde_json = { workspace = true }
 rustc-hash = { workspace = true }
 itertools = { workspace = true }
 rayon = { workspace = true }
 num = "0.4.3"
+z3 = "0.19.5"

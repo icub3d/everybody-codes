@@ -38,7 +38,7 @@ def get-input [workspace: string, name: string, part="1": string] {
   let file_empty = if ($input_path | path exists) { (ls $input_path | get 0.size) == 0B } else { false }
   if $file_missing or $file_empty {
     let user_info = (http get --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] https://everybody.codes/api/user/me)
-    http get --raw --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody-codes.b-cdn.net/assets/($year)/($quest)/input/($user_info.seed).json" out> $input_path
+    http get --raw --headers [Cookie $"everybody-codes=($env.EC_SESSION)"] $"https://everybody.codes/assets/($year)/($quest)/input/($user_info.seed).json" out> $input_path
   }
 
   # decode the input.
