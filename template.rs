@@ -4,8 +4,7 @@ const INPUT_PART1: &str = include_str!("inputs/[NAME]-1.txt");
 const INPUT_PART2: &str = include_str!("inputs/[NAME]-2.txt");
 const INPUT_PART3: &str = include_str!("inputs/[NAME]-3.txt");
 
-type Input = Vec<Vec<char>>;
-fn parse(input: &str) -> Input {
+fn parse(input: &str) -> Vec<Vec<char>> {
     // TODO: have you trim today?
     input.trim().lines().map(|l| l.chars().collect()).collect()
 }
