@@ -75,10 +75,6 @@ impl Range {
         Self { start, end }
     }
 
-    fn is_empty(&self) -> bool {
-        self.start > self.end
-    }
-
     // Get the overlap of `self` with `other`.
     fn intersection(&self, other: &Self) -> Self {
         Self::new(self.start.max(other.start), self.end.min(other.end))
@@ -96,41 +92,19 @@ impl Range {
 
     // Determine which nodes are reachable from `self`'s range to the `opening` given the `cur` wall x position and the `next` wall x position.
     fn reachable(&self, opening: &Range, cur: isize, next: isize) -> Option<Range> {
-        let dist = next - cur;
-
         // Determine potential range and intersect with the opening.
-        let intersect_range = self.expand(dist).intersection(opening);
+        let intersect_range = self.expand(next - cur).intersection(opening);
 
         // Find the minimum valid height.
         let min = intersect_range
             .iter()
-            .filter(|y| (next - y).is_multiple_of(&2))
-            .map(|y| (y, self.intersection(&Range::new(y - dist, y + dist))))
-            .find(|(_, r)| {
-                !r.is_empty()
-                    && if (r.start - cur).is_multiple_of(&2) {
-                        r.start
-                    } else {
-                        r.start + 1
-                    } <= r.end
-            })
-            .map(|(y, _)| y)?;
+            .find(|y| (next - y).is_multiple_of(&2))?;
 
         // Find the maximum valid height.
         let max = intersect_range
             .iter()
             .rev()
-            .filter(|y| (next - y).is_multiple_of(&2))
-            .map(|y| (y, self.intersection(&Range::new(y - dist, y + dist))))
-            .find(|(_, r)| {
-                !r.is_empty()
-                    && if (r.end - cur).is_multiple_of(&2) {
-                        r.end
-                    } else {
-                        r.end - 1
-                    } >= r.start
-            })
-            .map(|(y, _)| y)?;
+            .find(|y| (next - y).is_multiple_of(&2))?;
 
         Some(Range::new(min, max))
     }
@@ -158,6 +132,7 @@ impl Reachables {
             .cartesian_product(wall.gaps.iter())
             .filter_map(|(prev_range, opening)| prev_range.reachable(opening, self.cur, wall.dist))
             .fold(Vec::new(), |mut acc, next_range| {
+                // This has the effect of merging ranges that overlap.
                 match acc.last_mut() {
                     Some(last_range) if next_range.start <= last_range.end + 1 => {
                         last_range.end = last_range.end.max(next_range.end);

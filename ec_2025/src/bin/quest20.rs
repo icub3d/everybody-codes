@@ -55,11 +55,15 @@ impl From<&str> for Grid {
     fn from(value: &str) -> Self {
         let mut start = (0, 0);
         let mut end = (0, 0);
-        let cells = (0..)
-            .zip(value.trim().lines())
+        let cells = value
+            .trim()
+            .lines()
+            .enumerate()
             .map(|(row, l)| {
-                (0..)
-                    .zip(l.chars().skip(row).take_while(|c| *c != '.'))
+                l.chars()
+                    .skip(row)
+                    .take_while(|c| *c != '.')
+                    .enumerate()
                     .zip([Edge::Up, Edge::Down].iter().cycle())
                     .map(|((col, c), &dir)| {
                         if c == 'S' {
@@ -152,16 +156,12 @@ impl Grid {
         // Check Up/Down.
         match self.cells[row][col].edge {
             Edge::Up => {
-                if row > 0
-                    && col + 1 < self.cells[row - 1].len() // bounds check
-                    && self.cells[row - 1][col + 1].typ == CellType::Trampoline
-                {
+                if row > 0 && self.cells[row - 1][col + 1].typ == CellType::Trampoline {
                     neighbors.push((row - 1, col + 1))
                 }
             }
             Edge::Down => {
                 if row < self.cells.len() - 1
-                    && col > 0 // prevent underflow
                     && self.cells[row + 1][col - 1].typ == CellType::Trampoline
                 {
                     neighbors.push((row + 1, col - 1))

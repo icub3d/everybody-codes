@@ -27,11 +27,11 @@ fn p1(&(first, _, last): &InputPart1) -> usize {
 }
 
 fn p2(&(first, _, last): &InputPart2) -> usize {
-    // Note: This can be simplified with div_ceil, which I found later.
+    // We may have some remainder that we'll need to turn to get the last full turn. div_ceil will
+    // solve this for us.
     let n = last * 10_000_000_000_000;
     let d = first;
-    // We need to calculate full turns.
-    n / d + if !n.is_multiple_of(d) { 1 } else { 0 }
+    n.div_ceil(d)
 }
 
 fn p3(&(first, ref middle, last): &InputPart3) -> usize {
@@ -66,4 +66,3 @@ type InputPart3<'a> = (usize, Vec<(usize, usize)>, usize);
 fn parse_input_part3(input: &'_ str) -> InputPart3<'_> {
     parse_input_part1(input)
 }
-

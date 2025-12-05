@@ -5,8 +5,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::time::Instant;
 
-// TODO what if we short-circuit Dijkstra by checking for -2/2 in the winding value for the same tile. If we ever find it, the sum create the loop.
-
 const INPUT_PART1: &str = include_str!("inputs/quest17-1.txt");
 const INPUT_PART2: &str = include_str!("inputs/quest17-2.txt");
 const INPUT_PART3: &str = include_str!("inputs/quest17-3.txt");

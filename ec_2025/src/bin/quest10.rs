@@ -213,9 +213,14 @@ impl Board {
             // We only handle a row if we have a sheep there right now.
             if let Some(row) = state.sheep[column as usize] {
                 // Is it at the end? If so, the result of this is "0", but we did move, so the
-                // dragon shouldn't take a turn after this.
-                if row == self.rows - 1 {
-                    // TODO: or the hideout at self.rows-1 moves to the end of the board.
+                // dragon shouldn't take a turn after this. Also check if the rest of the column
+                // are hideouts. That's also a loss.
+                if row == self.rows - 1
+                    || (row + 1..self.rows).all(|r| {
+                        self.hideouts
+                            .contains(&Square::new(column as usize, r as usize))
+                    })
+                {
                     moved = true;
                     continue;
                 }

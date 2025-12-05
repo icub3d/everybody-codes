@@ -1,10 +1,11 @@
 use std::time::Instant;
 
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 struct Sequence {
     id: usize,
-    sequence: Vec<char>,
+    sequence: Vec<u8>,
 }
 
 impl From<&str> for Sequence {
@@ -12,7 +13,7 @@ impl From<&str> for Sequence {
         let (id, sequence) = value.split_once(':').unwrap();
         Self {
             id: id.parse::<usize>().unwrap(),
-            sequence: sequence.chars().collect(),
+            sequence: sequence.bytes().collect(),
         }
     }
 }
@@ -68,16 +69,23 @@ fn p1(sequences: &InputPart1) -> usize {
     }
 }
 
+struct Relationship {
+    child: usize,
+    p1: usize,
+    p2: usize,
+    sim_p1: usize,
+    sim_p2: usize,
+}
+
 // The goal here is to find relationships (still N^3) but to minimize the effort while finding
 // those relationships. Calling parents() on pairs made it take a few seconds to run. If we do the
 // work of calculation the overlap of each pair (N^2), then the N^3 loop is more efficient. At
 // least for my case.
-fn find_relationships<F>(sequences: &[Sequence], mut callback: F)
-where
-    F: FnMut(usize, usize, usize),
-{
-    // TODO: this might be fun to turn into an iterator.
+fn find_relationships(sequences: &[Sequence]) -> Vec<Relationship> {
     let n = sequences.len();
+    if n == 0 {
+        return vec![];
+    }
 
     // They all fit into a u128, so we can use a bit mask to find matches.
     let mut similarities = vec![vec![0u128; n]; n];
@@ -96,32 +104,39 @@ where
     };
 
     // Now we can test for lineage by doing some bitwise logic.
-    for p1 in 0..n {
-        for p2 in (p1 + 1)..n {
-            for c in 0..n {
-                if c == p1 || c == p2 {
-                    continue;
-                }
-                // Find the bits missing from p1 and make sure p2 has them.
-                let missing = similarities[c][p1] ^ mask;
-                if (missing & similarities[c][p2]) == missing {
-                    callback(sequences[c].id, sequences[p1].id, sequences[p2].id);
+    (0..n)
+        .into_par_iter()
+        .flat_map(|p1| {
+            let mut found_relationships = Vec::new();
+            for p2 in (p1 + 1)..n {
+                for (c, similarity) in similarities.iter().enumerate() {
+                    if c == p1 || c == p2 {
+                        continue;
+                    }
+                    // Find the bits missing from p1 and make sure p2 has them.
+                    let missing = similarity[p1] ^ mask;
+                    if (missing & similarity[p2]) == missing {
+                        found_relationships.push(Relationship {
+                            child: c,
+                            p1,
+                            p2,
+                            sim_p1: similarity[p1].count_ones() as usize,
+                            sim_p2: similarity[p2].count_ones() as usize,
+                        });
+                    }
                 }
             }
-        }
-    }
+            found_relationships
+        })
+        .collect()
 }
 
 fn p2(sequences: &InputPart2) -> usize {
-    let mut total_similarity = 0;
-    find_relationships(sequences, |c, p1, p2| {
-        // for each relationship multiply their similarities.
-        let child = &sequences[c - 1];
-        let parent1 = &sequences[p1 - 1];
-        let parent2 = &sequences[p2 - 1];
-        total_similarity += child.similarity(parent1) * child.similarity(parent2);
-    });
-    total_similarity
+    let relationships = find_relationships(sequences);
+    relationships
+        .into_par_iter()
+        .map(|r| r.sim_p1 * r.sim_p2)
+        .sum()
 }
 
 // In computer science, a disjoint-set data structure, also called a union–find data structure or
@@ -184,18 +199,19 @@ impl DisjointSet {
 }
 
 fn p3(sequences: &InputPart3) -> usize {
+    let relationships = find_relationships(sequences);
     // Fill up our disjoint set.
     let mut ds = DisjointSet::new(sequences.len());
-    find_relationships(sequences, |c, p1, p2| {
-        ds.union(c - 1, p1 - 1);
-        ds.union(c - 1, p2 - 1);
-    });
+    for r in relationships {
+        ds.union(r.child, r.p1);
+        ds.union(r.child, r.p2);
+    }
 
     // We want to find the largest set and return it's value (sum of ids).
     let mut components: FxHashMap<usize, Vec<usize>> = FxHashMap::default();
     for i in 0..sequences.len() {
         let root = ds.find(i);
-        components.entry(root).or_default().push(i + 1);
+        components.entry(root).or_default().push(sequences[i].id);
     }
     components
         .values()

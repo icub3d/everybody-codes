@@ -8,16 +8,34 @@ fn parse_input_part1(input: &str) -> InputPart1 {
     Grid::from(input)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Tile {
+    Active,
+    Inactive,
+}
+
+impl From<char> for Tile {
+    fn from(c: char) -> Self {
+        match c {
+            '#' => Tile::Active,
+            _ => Tile::Inactive,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct Grid {
-    // TODO could be a bitmask?
-    grid: Vec<Vec<char>>,
+    grid: Vec<Vec<Tile>>,
 }
 
 impl From<&str> for Grid {
     fn from(value: &str) -> Self {
         Self {
-            grid: value.trim().lines().map(|l| l.chars().collect()).collect(),
+            grid: value
+                .trim()
+                .lines()
+                .map(|l| l.chars().map(Tile::from).collect())
+                .collect(),
         }
     }
 }
@@ -26,7 +44,7 @@ impl Grid {
     // used for p3 to make an empty grid.
     fn new(size: usize) -> Self {
         Self {
-            grid: vec![vec!['.'; size]; size],
+            grid: vec![vec![Tile::Inactive; size]; size],
         }
     }
 
@@ -38,8 +56,8 @@ impl Grid {
             for (c, &v) in line.iter().enumerate() {
                 let neighbors = Self::diagonals(&self.grid, r as isize, c as isize);
                 next[r][c] = match (v, neighbors.is_multiple_of(2)) {
-                    ('#', true) => '.',
-                    ('.', true) => '#',
+                    (Tile::Active, true) => Tile::Inactive,
+                    (Tile::Inactive, true) => Tile::Active,
                     _ => v,
                 };
             }
@@ -49,13 +67,17 @@ impl Grid {
     }
 
     fn value(&self) -> usize {
-        self.grid.iter().flatten().filter(|&&v| v == '#').count()
+        self.grid
+            .iter()
+            .flatten()
+            .filter(|&&v| v == Tile::Active)
+            .count()
     }
 
     const DIAGONALS: [(isize, isize); 4] = [(1, 1), (1, -1), (-1, 1), (-1, -1)];
 
-    fn diagonals(grid: &[Vec<char>], r: isize, c: isize) -> usize {
-        // diagonals need to be in the grid and have a value of '#'.
+    fn diagonals(grid: &[Vec<Tile>], r: isize, c: isize) -> usize {
+        // diagonals need to be in the grid and have a value of Active.
         Self::DIAGONALS
             .iter()
             .filter(|&&(dr, dc)| {
@@ -64,25 +86,24 @@ impl Grid {
                     && nc >= 0
                     && (nr as usize) < grid.len()
                     && (nc as usize) < grid[0].len()
-                    && grid[nr as usize][nc as usize] == '#'
+                    && grid[nr as usize][nc as usize] == Tile::Active
             })
             .count()
     }
 
-    fn center_matches(&self, center: &[Vec<char>]) -> bool {
+    fn center_matches(&self, center: &[Vec<Tile>]) -> bool {
         // Figure out where the center would start.
         let (sr, sc) = (
             (self.grid.len() - center.len()) / 2,
             (self.grid[0].len() - center[0].len()) / 2,
         );
 
-        // TODO: this could be flattened?
         // Ensure all values are equal.
-        center.iter().enumerate().all(|(r, l)| {
-            l.iter()
-                .enumerate()
-                .all(|(c, v)| self.grid[sr + r][sc + c] == *v)
-        })
+        center
+            .iter()
+            .enumerate()
+            .flat_map(|(r, l)| l.iter().enumerate().map(move |(c, v)| (r, c, v)))
+            .all(|(r, c, v)| self.grid[sr + r][sc + c] == *v)
     }
 }
 
@@ -104,7 +125,6 @@ fn p2(input: &InputPart2) -> usize {
     simulate(input, 2025)
 }
 
-// TODO: does something like this already exist, more generic?
 struct CycleDetector<T> {
     seen: FxHashMap<T, usize>, // Previously seen states.
     prefix_sums: Vec<usize>,   // running totals

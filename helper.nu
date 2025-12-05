@@ -45,7 +45,7 @@ def get-input [workspace: string, name: string, part="1": string] {
   let input_part_path = $"($inputs_path)/($name)-($part_num).txt"
   let key = (cat $keys_path | from json | get $"key($part_num)")
   let iv = ($key | str substring 0..15)
-  cat $input_path | from json | get $"($part_num)" | aes decrypt --iv $"($iv)" -k $"($key)" | save --force $input_part_path
+  cat $input_path | from json | get $"($part_num)" | aes decrypt --iv=$"($iv)" --key=$"($key)" | save --force $input_part_path
   
   # If this is part 1, copy to parts 2 and 3 for template to work
   if $part_num == "1" {

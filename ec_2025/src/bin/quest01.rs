@@ -1,14 +1,14 @@
 use std::time::Instant;
 
 const INPUT_PART1: &str = include_str!("inputs/quest01-1.txt");
-type InputPart1<'a> = (Vec<&'a str>, Vec<i32>);
+type InputPart1<'a> = (Vec<&'a str>, Vec<isize>);
 fn parse_input_part1(input: &'_ str) -> InputPart1<'_> {
     let (names, moves) = input.split_once("\n\n").unwrap();
     let names = names.split(',').collect();
     let moves = moves
         .split(',')
         .map(|p| {
-            p[1..].parse::<i32>().unwrap()
+            p[1..].parse::<isize>().unwrap()
                 * match p.chars().next().unwrap() {
                     'R' => 1,
                     _ => -1,
@@ -19,27 +19,21 @@ fn parse_input_part1(input: &'_ str) -> InputPart1<'_> {
 }
 
 fn p1<'a>((names, moves): &'a InputPart1) -> &'a str {
-    let max = (names.len() - 1) as i32;
-    // let pos = moves
-    //     .iter()
-    //     .fold(0i32, |acc, delta| (acc + delta).clamp(0, max));
+    let max = (names.len() - 1) as isize;
     let pos = moves
         .iter()
-        .fold(0i32, |acc, delta| (acc + delta).min(max).max(0));
+        .fold(0isize, |acc, delta| (acc + delta).clamp(0, max));
     names[pos as usize]
 }
 
 fn p2<'a>((names, moves): &'a InputPart2) -> &'a str {
-    // let pos = moves.iter().sum::<i32>().rem_euclid(names.len() as i32);
-    let pos = moves.iter().fold(0i32, |acc, delta| {
-        (acc + delta).rem_euclid(names.len() as i32)
-    });
+    let pos = moves.iter().sum::<isize>().rem_euclid(names.len() as isize);
     names[pos as usize]
 }
 
 fn p3<'a>((names, moves): &'a mut InputPart3) -> &'a str {
     moves.iter().for_each(|delta| {
-        let pos = delta.rem_euclid(names.len() as i32);
+        let pos = delta.rem_euclid(names.len() as isize);
         names.swap(0, pos as usize);
     });
 
@@ -74,4 +68,3 @@ type InputPart3<'a> = InputPart1<'a>;
 fn parse_input_part3(input: &'_ str) -> InputPart3<'_> {
     parse_input_part1(input)
 }
-
